@@ -13,11 +13,25 @@ function Camera() {
   useEffect(async () => {
     await faceapi.loadSsdMobilenetv1Model("/models");
     await faceapi.loadFaceLandmarkTinyModel("/models");
-    // await faceapi.loadFaceExpressionModel("/models");
+    await faceapi.loadFaceExpressionModel("/models");
     // await faceapi.loadMtcnnModel("/models");
     // await faceapi.loadFaceRecognitionModel("/models");
   }, []);
-
+  const mtcnnForwardParams = {
+    // number of scaled versions of the input image passed through the CNN
+    // of the first stage, lower numbers will result in lower inference time,
+    // but will also be less accurate
+    maxNumScales: 10,
+    // scale factor used to calculate the scale steps of the image
+    // pyramid used in stage 1
+    scaleFactor: 0.709,
+    // the score threshold values used to filter the bounding
+    // boxes of stage 1, 2 and 3
+    scoreThresholds: [0.6, 0.7, 0.7],
+    // mininum face size to expect, the higher the faster processing will be,
+    // but smaller faces won't be detected
+    minFaceSize: 100
+  }
   const getVideo = () => {
     const constraints = (window.constraints = {
       audio: false,
@@ -123,6 +137,15 @@ function Camera() {
         faceapi.draw.drawDetections(canvas, resizedDetections);
         faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
       }
+      // // mtcnn 
+      // const mtcnnResults = await faceapi.mtcnn(video, mtcnnForwardParams)
+      // const canvas = canvasRef.current;
+      // console.log(mtcnnResults)
+      // // const dims = faceapi.matchDimensions(canvas, video, true);
+      // // const resizedDetections = faceapi.resizeResults(result, dims);
+      // faceapi.draw.drawDetections(canvas, mtcnnResults.map(res => res.faceDetection))
+      // faceapi.draw.drawFaceLandmarks(canvas, mtcnnResults.map(res => res.faceLandmarks))
+
     }, 500);
     setDetecting(interval);
   };
