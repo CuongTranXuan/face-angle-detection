@@ -1,0 +1,42 @@
+.detector-frame--haar {
+  position: relative;
+  display: grid;
+  width: min(100%, 640px);
+  aspect-ratio: 4 / 3;
+  margin: 0 auto;
+  overflow: hidden;
+  place-items: center;
+  background: #08090e;
+  border: 1px solid rgba(69, 216, 202, 0.38);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.3);
+}
+
+.detector-frame--haar canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+
+.detector-frame__empty {
+  position: absolute;
+  display: grid;
+  gap: 8px;
+  color: #f4f3ef;
+  text-align: center;
+}
+
+.detector-frame__empty span {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.detector-frame__empty small {
+  color: #92929e;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

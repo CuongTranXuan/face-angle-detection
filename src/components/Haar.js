@@ -1,215 +1,213 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from 'react';
+import './Haar.css';
+import { publicAsset } from '../utils/paths';
 
-class Haar extends React.Component {
-    constructor(props) {
-        super(props);
-        this.btnRef = React.createRef();
-        this.videoRef = React.createRef();
-        this.canvasRef = React.createRef();
-        this.fpsRef = React.createRef();
+const VIDEO_WIDTH = 480;
+const VIDEO_HEIGHT = 480;
+
+function Haar({ isActive, onStateChange }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+  const cvRef = useRef(null);
+  const mountedRef = useRef(true);
+  const onStateChangeRef = useRef(onStateChange);
+  const [opencvReady, setOpencvReady] = useState(false);
+
+  useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  }, [onStateChange]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const scriptId = 'opencv-js-runtime';
+    let script = document.getElementById(scriptId);
+    const handleReady = () => {
+      if (!window.cv) return;
+      window.cv.onRuntimeInitialized = () => {
+        if (!mountedRef.current) return;
+        cvRef.current = window.cv;
+        setOpencvReady(true);
+        onStateChangeRef.current({
+          status: 'Ready to start',
+          statusTone: 'neutral',
+          detail: 'OpenCV is ready for frontal-face detection.',
+        });
+      };
+      if (window.cv.Mat) {
+        cvRef.current = window.cv;
+        setOpencvReady(true);
+      }
+    };
+
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.async = true;
+      script.src = publicAsset('opencv.js');
+      script.addEventListener('load', handleReady);
+      document.body.appendChild(script);
+    } else if (window.cv) {
+      handleReady();
     }
-    componentDidMount() {
-        const script = document.createElement("script");
-        script.src = "/opencv.js";
-        script.async = true;
-        script.onload = () => this.onOpenCvReady();
-        document.body.appendChild(script);
+
+    onStateChangeRef.current({
+      status: 'Loading OpenCV',
+      statusTone: 'loading',
+      detail: 'Loading the OpenCV.js runtime and Haar cascade.',
+    });
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const stopCamera = () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+      if (canvasRef.current) {
+        canvasRef.current.getContext('2d').clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+      }
+    };
+
+    if (!isActive || !opencvReady) {
+      if (!isActive) stopCamera();
+      return stopCamera;
     }
-    componentWillUnmount() {
-        let scriptToremove = "/opencv.js";
-        let allsuspects = document.getElementsByTagName("script");
-        for (let i = allsuspects.length; i >= 0; i--) {
-            if (
-                allsuspects[i] &&
-                allsuspects[i].getAttribute("src") !== null &&
-                allsuspects[i]
-                    .getAttribute("src")
-                    .indexOf(`${scriptToremove}`) !== -1
-            ) {
-                allsuspects[i].parentNode.removeChild(allsuspects[i]);
-            }
+
+    let cancelled = false;
+    let classifier;
+    let capture;
+    let source;
+    let gray;
+    let destination;
+    const cv = cvRef.current;
+
+    const loadCascade = () => new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('GET', publicAsset('models/haarcascade_frontalface_default.xml'), true);
+      request.responseType = 'arraybuffer';
+      request.onload = () => {
+        if (request.status !== 200) {
+          reject(new Error(`Cascade request failed with status ${request.status}`));
+          return;
         }
-    }
-    createFileFromUrl(path, url, callback) {
-        let request = new XMLHttpRequest();
-        request.open("GET", url, true);
-        request.responseType = "arraybuffer";
-        request.onload = function (ev) {
-            if (request.readyState === 4) {
-                if (request.status === 200) {
-                    let data = new Uint8Array(request.response);
-                    window.cv.FS_createDataFile(
-                        "/",
-                        path,
-                        data,
-                        true,
-                        false,
-                        false
-                    );
-                    callback();
-                } else {
-                    console.log(
-                        "Failed to load " + url + " status: " + request.status
-                    );
-                }
+        try {
+          const fileName = 'face-angle-haar.xml';
+          if (cv.FS_createDataFile) {
+            try { cv.FS_unlink(`/${fileName}`); } catch (error) { /* file is not mounted yet */ }
+            cv.FS_createDataFile('/', fileName, new Uint8Array(request.response), true, false, false);
+          }
+          resolve(fileName);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      request.onerror = () => reject(new Error('Cascade request failed'));
+      request.send();
+    });
+
+    const startCamera = async () => {
+      try {
+        const cascadeFile = await loadCascade();
+        classifier = new cv.CascadeClassifier();
+        classifier.load(cascadeFile);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT, facingMode: 'user' },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        video.srcObject = stream;
+        await video.play();
+        capture = new cv.VideoCapture(video);
+        source = new cv.Mat(VIDEO_HEIGHT, VIDEO_WIDTH, cv.CV_8UC4);
+        destination = new cv.Mat(VIDEO_HEIGHT, VIDEO_WIDTH, cv.CV_8UC4);
+        gray = new cv.Mat();
+        onStateChangeRef.current({ status: 'Searching', statusTone: 'active', detail: 'Scanning with Haar cascade…' });
+
+        const processFrame = () => {
+          if (cancelled || !streamRef.current) return;
+          const startedAt = performance.now();
+          try {
+            capture.read(source);
+            cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY, 0);
+            const faces = new cv.RectVector();
+            classifier.detectMultiScale(gray, faces, 1.2, 3, 0, new cv.Size(70, 70));
+            destination.delete();
+            destination = source.clone();
+            let largestFace = null;
+            let largestArea = 0;
+            for (let index = 0; index < faces.size(); index += 1) {
+              const face = faces.get(index);
+              const area = face.width * face.height;
+              if (area > largestArea) {
+                largestArea = area;
+                largestFace = face;
+              }
             }
-        };
-        request.send();
-    }
-    onOpenCvReady() {
-        const cv = window.cv;
-        cv["onRuntimeInitialized"] = () => {
-            console.log("OpenCV.js is ready!", cv);
-            this.createFileFromUrl(
-                "face.xml",
-                "models/haarcascade_frontalface_default.xml",
-                () => {
-                    console.log("OK");
-                }
-            );
-            // this.createFileFromUrl(
-            //     "eye.xml",
-            //     "models/haarcascade_eye.xml",
-            //     () => {
-            //         console.log("OK");
-            //     }
-            // );
-
-            let video = this.videoRef.current;
-
-            let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
-            let dst = new cv.Mat(video.height, video.width, cv.CV_8UC4);
-            let gray = new cv.Mat();
-            let cap = new cv.VideoCapture(video);
-            let faces = new cv.RectVector();
-            let eyes = new cv.RectVector();
-            let classifier = new cv.CascadeClassifier();
-            let eyeClassifier = new cv.CascadeClassifier();
-            let streaming = false;
-            const fps = document.getElementById("fps");
-            const face_pose = document.getElementById("face-pose");
-            const maxFPS = 30;
-            const minDelay = 1000 / maxFPS;
-
-            function processVideo() {
-                try {
-                    if (!streaming) {
-                        return;
-                    }
-                    let begin = Date.now();
-                    // start processing.
-                    cap.read(dst);
-                    // src.copyTo(dst);
-                    cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0);
-                    // detect faces.
-                    classifier.detectMultiScale(gray, faces, 1.2, 3, 0, new cv.Size(70));
-                    // draw faces.
-                    let maxAreaFaceId = -1
-                    let maxArea = 0
-                    for (let i = 0; i < faces.size(); ++i) {
-                        let face = faces.get(i);
-                        let area = face.width * face.height
-                        if (area > maxArea) {
-                            maxArea = area
-                            maxAreaFaceId = i
-                        }
-                    }
-                    if (maxAreaFaceId != -1) {
-                        let face = faces.get(maxAreaFaceId);
-                        let point1 = new cv.Point(face.x, face.y);
-                        let point2 = new cv.Point(face.x + face.width, face.y + face.height);
-                        cv.rectangle(dst, point1, point2, [0, 255, 0, 255], 2);
-                        let halfFace = {
-                            x: face.x,
-                            y: face.y,
-                            width: face.width,
-                            height: Math.round(face.height/2)
-                        }
-                        face_pose.innerText = "Straight, face angle not calculated ";
-                        // let maxEyeWidth = Math.round(face.width/3)
-                        // eyeClassifier.detectMultiScale(gray.roi(halfFace), eyes, 1.2, 5, 0, new cv.Size(30), new cv.Size(maxEyeWidth));
-
-                        // for (let j = 0; j < eyes.size(); ++j) {
-                        //     let point1 = new cv.Point(eyes.get(j).x, eyes.get(j).y);
-                        //     let point2 = new cv.Point(eyes.get(j).x + eyes.get(j).width,
-                        //                             eyes.get(j).y + eyes.get(j).height);
-                        //     cv.rectangle(dst.roi(halfFace), point1, point2, [255, 255, 0, 255], 2);
-                        // }
-                    } else {
-                        face_pose.innerText = "not detected"
-                    }
-                    cv.imshow('canvasOutput', dst);
-                    // schedule the next one.
-                    let dur = Date.now() - begin
-                    let delay = minDelay - dur
-                    // console.log(dur, 1000/dur)
-                    fps.innerText = (1000 / Math.max(minDelay, dur)).toFixed(2).toString()
-                    setTimeout(processVideo, delay);
-                } catch (err) {
-                    console.log(err)
-                    // utils.printError(err);
-                }
-            };
-            const btn = this.btnRef.current;
-            btn.onclick = run
-
-            function run() {
-                streaming = !streaming
-                if (streaming) {
-                    navigator.mediaDevices.getUserMedia({ video: {width: 480, height: 480, facingMode: "user"}, audio: false })
-                    .then(function(stream) {
-                        video.srcObject = stream;
-                        video.play();
-                    })
-                    .catch(function(err) {
-                        console.log("An error occurred! " + err);
-                    });
-                    classifier.load("/face.xml")
-                    eyeClassifier.load("/eye.xml")
-                    processVideo()
-                    btn.innerText = "Stop"
-                } else {
-                    btn.innerText = "Start"
-                }
+            if (largestFace) {
+              cv.rectangle(
+                destination,
+                new cv.Point(largestFace.x, largestFace.y),
+                new cv.Point(largestFace.x + largestFace.width, largestFace.y + largestFace.height),
+                [69, 216, 202, 255],
+                3
+              );
             }
-            // schedule the first one.
-            // setTimeout(processVideo, 0);
+            cv.imshow(canvasRef.current, destination);
+            faces.delete();
+            const elapsed = performance.now() - startedAt;
+            onStateChangeRef.current({
+              status: largestFace ? 'Face detected' : 'Searching',
+              statusTone: 'active',
+              fps: String(Math.round(1000 / Math.max(elapsed, 1))),
+              angle: '--',
+              detail: largestFace ? 'Frontal face detected' : 'No face detected',
+            });
+          } catch (error) {
+            console.error('Haar detection failed', error);
+            onStateChangeRef.current({ status: 'Runtime error', statusTone: 'error', detail: 'OpenCV stopped while reading the frame.' });
+          }
+          timerRef.current = window.setTimeout(processFrame, 100);
         };
-    }
-    render() {
-        return (
-            <div>
-                <div>
-                    <div>
-                        <div>
-                            <button id="start-or-stop" ref={this.btnRef}>
-                                Start
-                            </button>
-                            <video
-                                id="input-video"
-                                width="480"
-                                height="480"
-                                hidden
-                                ref={this.videoRef}
-                            ></video>
-                            <canvas
-                                id="canvasOutput"
-                                width="480"
-                                height="480"
-                                ref={this.canvasRef}
-                            ></canvas>
-                            <p>
-                                FPS: <span id="fps">0</span>
-                            </p>
-                            <p>
-                                Face pose: <span id="face-pose">no face</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+        processFrame();
+      } catch (error) {
+        console.error('Haar detector failed to start', error);
+        onStateChangeRef.current({ status: 'Detector error', statusTone: 'error', detail: 'OpenCV or camera access could not be initialized.' });
+      }
+    };
+
+    startCamera();
+    return () => {
+      cancelled = true;
+      stopCamera();
+      [source, destination, gray, classifier, capture].forEach((resource) => {
+        if (resource && typeof resource.delete === 'function') resource.delete();
+      });
+    };
+  }, [isActive, opencvReady]);
+
+  return (
+    <div className="detector-frame detector-frame--haar">
+      <video ref={videoRef} width={VIDEO_WIDTH} height={VIDEO_HEIGHT} muted playsInline hidden />
+      <canvas ref={canvasRef} width={VIDEO_WIDTH} height={VIDEO_HEIGHT} aria-label="OpenCV Haar camera output" />
+      {!isActive && <div className="detector-frame__empty"><span>Haar cascade</span><small>Press start to activate the camera</small></div>}
+    </div>
+  );
 }
 
 export default Haar;
