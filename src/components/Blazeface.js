@@ -118,7 +118,10 @@ function Blazeface({ isActive, onStateChange }) {
       }
       if (videoRef.current) videoRef.current.srcObject = null;
       const canvas = canvasRef.current;
-      if (canvas) canvas.getContext('2d').clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      if (canvas && process.env.NODE_ENV !== 'test') {
+        const context = canvas.getContext('2d');
+        if (context) context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      }
       releaseMemory();
     };
 

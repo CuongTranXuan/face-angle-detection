@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders the unified face angle dashboard', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText(/Three ways to read a face/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Face API/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Haar cascade/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /BlazeFace/i })).toBeInTheDocument();
 });

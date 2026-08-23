@@ -1,0 +1,4 @@
+# Verification Notes
+
+The running development server rendered the unified dashboard at the exposed local URL with the expected page title, hero copy, three detector cards, a live workspace, a single start/stop control, a camera canvas, and telemetry panel. The visual layout is dark, responsive, and clearly separates the Face API, Haar cascade, and BlazeFace methods. The initial Face API state displayed “Models loaded. Allow the camera to begin tracking.” without requesting camera access until the user pressed Start.
+Selecting the Haar cascade card updated the active card, workspace title, method id, camera canvas label, and OpenCV readiness text without leaving the page. Selecting BlazeFace did the same and reported the detected `blazeface-simd` runtime as ready. The shared layout remained stable across both switches.

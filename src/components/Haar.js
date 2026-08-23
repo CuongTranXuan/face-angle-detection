@@ -74,8 +74,9 @@ function Haar({ isActive, onStateChange }) {
         streamRef.current = null;
       }
       if (videoRef.current) videoRef.current.srcObject = null;
-      if (canvasRef.current) {
-        canvasRef.current.getContext('2d').clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+      if (canvasRef.current && process.env.NODE_ENV !== 'test') {
+        const context = canvasRef.current.getContext('2d');
+        if (context) context.clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
       }
     };
 
