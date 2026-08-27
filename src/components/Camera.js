@@ -138,8 +138,6 @@ function Camera({ isActive, onStateChange }) {
               .withFaceLandmarks(USE_TINY_MODEL);
             context.clearRect(0, 0, canvas.width, canvas.height);
             const dims = faceapi.matchDimensions(canvas, videoRef.current, true);
-            context.save();
-            context.setTransform(-1, 0, 0, 1, canvas.width, 0);
             context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
             const elapsed = performance.now() - startedAt;
@@ -169,7 +167,6 @@ function Camera({ isActive, onStateChange }) {
                 detail: 'No face detected',
               });
             }
-            context.restore();
           } catch (error) {
             console.error('Face API detection failed', error);
             onStateChangeRef.current({ status: 'Runtime error', statusTone: 'error', detail: 'The detector stopped while reading the frame.' });
