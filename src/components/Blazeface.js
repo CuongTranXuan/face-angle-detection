@@ -75,7 +75,19 @@ function Blazeface({ isActive, onStateChange }) {
         const wasmResponse = await fetch(publicAsset(`ncnn/${moduleName}.wasm`));
         if (!wasmResponse.ok) throw new Error(`Unable to load ${moduleName}.wasm`);
         window.Module.wasmBinary = await wasmResponse.arrayBuffer();
+        const runtimeReady = new Promise((resolve) => {
+          if (window.Module.calledRun) {
+            resolve();
+            return;
+          }
+          const previousRuntimeCallback = window.Module.onRuntimeInitialized;
+          window.Module.onRuntimeInitialized = () => {
+            if (typeof previousRuntimeCallback === 'function') previousRuntimeCallback();
+            resolve();
+          };
+        });
         await loadScript(scriptIds[1], publicAsset(`ncnn/${moduleName}.js`));
+        await runtimeReady;
         const loadedModule = window.Module;
         if (!loadedModule._blazeface_ncnn || !loadedModule._malloc) throw new Error('NCNN runtime exports are missing');
         moduleRef.current = loadedModule;
@@ -157,14 +169,10 @@ function Blazeface({ isActive, onStateChange }) {
           if (cancelled || !streamRef.current) return;
           const startedAt = performance.now();
           context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-          context.save();
-          context.translate(CANVAS_WIDTH, 0);
-          context.scale(-1, 1);
           context.drawImage(video, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
           const imageData = context.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-          context.restore();
           module.HEAPU8.set(imageData.data, memoryRef.current.dst);
-          module._blazeface_ncnn(CANVAS_WIDTH, CANVAS_HEIGHT, memoryRef.current.dst, memoryRef.current.resultBuffer);
+          module._blazeface_ncnn(memoryRef.current.dst, canvas.width, canvas.height, memoryRef.current.resultBuffer);
           const results = module.HEAPF32.subarray(
             memoryRef.current.resultBuffer / Float32Array.BYTES_PER_ELEMENT,
             memoryRef.current.resultBuffer / Float32Array.BYTES_PER_ELEMENT + 16 * MAX_FACES

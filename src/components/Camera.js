@@ -5,6 +5,10 @@ import { publicAsset } from '../utils/paths';
 
 const VIDEO_WIDTH = 480;
 const VIDEO_HEIGHT = 480;
+const DETECTION_INTERVAL_MS = 500;
+const MIN_CONFIDENCE = 0.5;
+const MAX_RESULTS = 2;
+const USE_TINY_MODEL = true;
 
 function meanPosition(points) {
   const total = points.reduce((sum, point) => [sum[0] + point.x, sum[1] + point.y], [0, 0]);
@@ -42,8 +46,8 @@ function Camera({ isActive, onStateChange }) {
         });
         const modelPath = publicAsset('models');
         await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(modelPath),
-          faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelPath),
+          faceapi.loadSsdMobilenetv1Model(modelPath),
+          faceapi.loadFaceLandmarkTinyModel(modelPath),
         ]);
         if (!mountedRef.current) return;
         setModelsReady(true);
@@ -78,7 +82,10 @@ function Camera({ isActive, onStateChange }) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (videoRef.current) {
+        if (process.env.NODE_ENV !== 'test') videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      }
       if (canvasRef.current && process.env.NODE_ENV !== 'test') {
         const context = canvasRef.current.getContext('2d');
         if (context) context.clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
@@ -108,6 +115,7 @@ function Camera({ isActive, onStateChange }) {
         }
         streamRef.current = stream;
         const video = videoRef.current;
+        const canvas = canvasRef.current;
         video.srcObject = stream;
         await video.play();
         onStateChangeRef.current({ status: 'Searching', statusTone: 'active', detail: 'Scanning for a face…' });
@@ -117,29 +125,34 @@ function Camera({ isActive, onStateChange }) {
           processingRef.current = true;
           const startedAt = performance.now();
           try {
-            const result = await faceapi
-              .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-              .withFaceLandmarks(true);
-            const canvas = canvasRef.current;
             const context = canvas.getContext('2d');
-            context.clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+            if (!context) throw new Error('Canvas 2D context is unavailable');
+            const result = await faceapi
+              .detectSingleFace(
+                videoRef.current,
+                new faceapi.SsdMobilenetv1Options({
+                  minConfidence: MIN_CONFIDENCE,
+                  maxResults: MAX_RESULTS,
+                })
+              )
+              .withFaceLandmarks(USE_TINY_MODEL);
+            context.clearRect(0, 0, canvas.width, canvas.height);
             const dims = faceapi.matchDimensions(canvas, videoRef.current, true);
+            context.save();
+            context.setTransform(-1, 0, 0, 1, canvas.width, 0);
+            context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
             const elapsed = performance.now() - startedAt;
             const fps = Math.round(1000 / Math.max(elapsed, 1));
-
             if (result) {
               const resized = faceapi.resizeResults(result, dims);
               const rightEye = meanPosition(resized.landmarks.getRightEye());
               const leftEye = meanPosition(resized.landmarks.getLeftEye());
               const nose = meanPosition(resized.landmarks.getNose());
-              const angle = (leftEye[0] + (rightEye[0] - leftEye[0]) / 2 - nose[0]) / resized.detection.box.width;
+              const angle = (leftEye[0] + (rightEye[0] - leftEye[0]) / 2 - nose[0]) / resized.detection._box._width;
               const direction = classifyAngle(angle);
-              context.save();
-              context.translate(canvas.width, 0);
-              context.scale(-1, 1);
               faceapi.draw.drawDetections(canvas, resized);
               faceapi.draw.drawFaceLandmarks(canvas, resized);
-              context.restore();
               onStateChangeRef.current({
                 status: 'Face detected',
                 statusTone: 'active',
@@ -156,13 +169,14 @@ function Camera({ isActive, onStateChange }) {
                 detail: 'No face detected',
               });
             }
+            context.restore();
           } catch (error) {
             console.error('Face API detection failed', error);
             onStateChangeRef.current({ status: 'Runtime error', statusTone: 'error', detail: 'The detector stopped while reading the frame.' });
           } finally {
             processingRef.current = false;
           }
-        }, 250);
+        }, DETECTION_INTERVAL_MS);
       } catch (error) {
         console.error('Camera access failed', error);
         onStateChangeRef.current({
