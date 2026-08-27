@@ -13,7 +13,7 @@ const detectors = [
     eyebrow: 'SSD + landmarks',
     tag: 'Landmarks',
     description: 'A landmark-aware detector that estimates pose from eye and nose geometry.',
-    accent: '#9d7bff',
+    accent: '#155eef',
     component: Camera,
   },
   {
@@ -23,7 +23,7 @@ const detectors = [
     eyebrow: 'OpenCV.js',
     tag: 'Classic CV',
     description: 'A compact OpenCV pipeline for fast frontal-face detection in the browser.',
-    accent: '#45d8ca',
+    accent: '#00a878',
     component: Haar,
   },
   {
@@ -33,7 +33,7 @@ const detectors = [
     eyebrow: 'NCNN + WebAssembly',
     tag: 'WASM',
     description: 'A native-compiled detector with keypoints for a lightweight angle proxy.',
-    accent: '#ffb45b',
+    accent: '#ff8a00',
     component: Blazeface,
   },
 ];
@@ -102,15 +102,15 @@ function DemoDashboard() {
 
       <section className="hero page-width">
         <div className="hero__copy">
-          <p className="eyebrow">Three ways to read a face</p>
-          <h1>Find the right signal<br /><em>for every angle.</em></h1>
+          <p className="eyebrow">Face angle // signal arcade</p>
+          <h1>Pick a lane.<br /><em>Read the angle.</em></h1>
           <p className="hero__lede">
-            Compare browser-native face detectors through one focused camera workspace. Pick a method, start the stream, and watch the pose signal settle in real time.
+            Three local vision engines. One camera feed. Pick a lane, press start, and watch the face signal resolve in real time.
           </p>
         </div>
         <div className="hero__stamp" aria-label="Three detection methods available">
           <span className="hero__stamp-number">03</span>
-          <span className="hero__stamp-label">detection<br />methods</span>
+          <span className="hero__stamp-label">vision<br />lanes</span>
         </div>
       </section>
 
@@ -180,8 +180,8 @@ function DemoDashboard() {
       </section>
 
       <footer className="dashboard-footer page-width">
-        <span>Local inference · no frames leave your browser</span>
-        <span>Face angle detection demo <b>↗</b></span>
+        <span>LOCAL INFERENCE // NO FRAMES UPLOADED</span>
+        <span>FACE / ANGLE // INSERT COIN <b>↗</b></span>
       </footer>
     </main>
   );

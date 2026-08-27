@@ -6,9 +6,9 @@
   margin: 0 auto;
   overflow: hidden;
   place-items: center;
-  background: #08090e;
-  border: 1px solid rgba(157, 123, 255, 0.38);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.3);
+  background: #17181b;
+  border: 4px solid #18181b;
+  box-shadow: 7px 7px 0 #155eef;
 }
 
 .detector-frame canvas {
@@ -16,27 +16,33 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
 }
 
 .detector-frame__empty {
   position: absolute;
   display: grid;
   gap: 8px;
-  color: #f4f3ef;
+  padding: 18px;
+  color: #fff8df;
   text-align: center;
+  background: #18181b;
+  border: 3px solid #fff8df;
+  box-shadow: 4px 4px 0 #ef476f;
 }
 
 .detector-frame__empty span {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
 }
 
 .detector-frame__empty small {
-  color: #92929e;
-  font-family: 'DM Mono', monospace;
+  color: #f3e8c2;
+  font-family: 'Courier New', monospace;
   font-size: 9px;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
