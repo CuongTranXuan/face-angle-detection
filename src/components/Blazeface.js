@@ -72,6 +72,7 @@ function Blazeface({ isActive, onStateChange }) {
           : (threadsSupported ? 'blazeface-threads' : 'blazeface-basic');
 
         window.Module = window.Module || {};
+        window.Module.locateFile = (fileName) => publicAsset(`ncnn/${fileName}`);
         const wasmResponse = await fetch(publicAsset(`ncnn/${moduleName}.wasm`));
         if (!wasmResponse.ok) throw new Error(`Unable to load ${moduleName}.wasm`);
         window.Module.wasmBinary = await wasmResponse.arrayBuffer();
